@@ -38,7 +38,7 @@ s = 0;
 
 for sub = minSub : maxSub
     
-    testFilename = [wd '\Data\BehavData\VMC_MvNP_noOmi_dataP' num2str(sub) '_S2.mat'];
+    testFilename = [wd '\SummarySaccadeDataP' num2str(sub) '.mat'];
     
     if exist(testFilename, 'file') == 2
         
@@ -128,11 +128,11 @@ for sub = minSub : maxSub
             
             for t = 1:size(tempDoubleData,1)
                 saccDir = find(tempDoubleData(t,4:10)==1);
-                if saccDir == tempDoubleData(t,13) %saccade to target
+                if saccDir == tempDoubleData(t,15) %saccade to target
                     doublePropTarget(s,d) = doublePropTarget(s,d) + 1;
-                elseif saccDir == tempDoubleData(t,14) %saccade to main distractor
+                elseif saccDir == tempDoubleData(t,16) %saccade to main distractor
                     doublePropDist(s,d) = doublePropDist(s,d) + 1;
-                elseif saccDir == tempDoubleData(t,15) %saccade to sec distractor
+                elseif saccDir == tempDoubleData(t,17) %saccade to sec distractor
                     doubleProp2Dist(s,d) = doubleProp2Dist(s,d) + 1;
                 end
             end
