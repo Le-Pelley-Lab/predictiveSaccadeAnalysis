@@ -61,9 +61,10 @@ end
 
 % Algorithm parameters
 WindowLength = 20;
-vThreshold = 30;
+vThreshold = 100;
 fixGapDurThresh = 75;
 fixGapAngleThresh = 0.5;
+medianFilterWindowLength = 5;
 if discardAnticipatory == 1
     anticipationThreshold = 80;
 else
@@ -146,6 +147,43 @@ for sub = subjectlist
                 end
                 GapsAfterFill = sum(GazeData(:,8)==4)/size(GazeData,1);
                 
+                % apply median filter to smooth out noise in the gaze
+                % position samples
+                newX = zeros(size(GazeData(:,5)));
+                newY = zeros(size(GazeData(:,6)));
+                newZ = zeros(size(GazeData(:,7)));
+                
+                for ss = 1:size(GazeData,1)
+                    windowStep = 2;
+                    windowCheck = 1;
+                    while windowCheck == 1
+                        windowStart = ss-windowStep;
+                        windowEnd = ss+windowStep;
+                        if windowStart < 1 || windowEnd > size(GazeData,1)
+                            windowStep = windowStep-1;
+                        elseif sum(GazeData(windowStart:windowEnd,8)==4) > 1
+                            windowStep = windowStep-1;
+                        else
+                            windowCheck = 0;
+                        end
+                    end
+                    
+                    if windowStep > -1                
+                    newX(ss) = median(GazeData(windowStart:windowEnd,5));
+                    newY(ss) = median(GazeData(windowStart:windowEnd,6));
+                    newZ(ss) = median(GazeData(windowStart:windowEnd,7));
+                    else
+                        newX(ss) = 0;
+                        newY(ss) = 0;
+                        newZ(ss) = 0;
+                    end
+                end
+                
+                % Fix this so that we can store the raw unfiltered coords as
+                % well
+                GazeData(:,5) = newX;
+                GazeData(:,6) = newY;
+                GazeData(:,7) = newZ;
                 
                 % Start of I-VT classifier
                 velocity = zeros(1, size(GazeData,1)-sampleWindowLength); % set up velocity array
@@ -185,7 +223,9 @@ for sub = subjectlist
                     %              plot(time, GazeData(:,9)', time, GazeData(:,10)', time, [velocity 0 0 0], time, repmat(30,1,length(time)))
                     %%%%%%%%%%
                     
-                    
+                    velSessionData(session).velPhaseData(phase).velTrialData{t} = velocity;
+                    velSessionData(session).velPhaseData(phase).xTrialData{t} = GazeData(:,9);
+                    velSessionData(session).velPhaseData(phase).yTrialData{t} = GazeData(:,10);
                     
                     
                     %I-VT classifier
@@ -217,6 +257,8 @@ for sub = subjectlist
                         aa = aa + 1;
                     end
                 end
+                
+                
                 
                 %merge adjacent fixations
                 if isempty(movList) == 0
@@ -310,6 +352,7 @@ for sub = subjectlist
     
     
     save(['SummarySaccadeDataP',num2str(sub),'.mat'],'saccadeSessionData');
+    save(['RawVelocityDataP', num2str(sub),'.mat'], 'velSessionData');
     
 end
 
