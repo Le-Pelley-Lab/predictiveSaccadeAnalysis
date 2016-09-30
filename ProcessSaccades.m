@@ -110,7 +110,7 @@ for sub = subjectlist
         
         for phase = 1:maxPhases(session)
             
-            saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData = zeros(maxTrials(session, phase),size(stimVector,1)+7); %initiate summary data array
+            saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData = zeros(maxTrials(session, phase),size(stimVector,1)+9); %initiate summary data array
             
             clc; disp(['Processing Subject ',num2str(sub), ' Session ', num2str(session), ' Phase ', num2str(phase)])
             
@@ -168,10 +168,10 @@ for sub = subjectlist
                         end
                     end
                     
-                    if windowStep > -1                
-                    newX(ss) = median(GazeData(windowStart:windowEnd,5));
-                    newY(ss) = median(GazeData(windowStart:windowEnd,6));
-                    newZ(ss) = median(GazeData(windowStart:windowEnd,7));
+                    if windowStep > -1
+                        newX(ss) = median(GazeData(windowStart:windowEnd,5));
+                        newY(ss) = median(GazeData(windowStart:windowEnd,6));
+                        newZ(ss) = median(GazeData(windowStart:windowEnd,7));
                     else
                         newX(ss) = 0;
                         newY(ss) = 0;
@@ -203,8 +203,9 @@ for sub = subjectlist
                         end
                     end
                 end
-                
+                aa = 1;
                 bb = 0; %used later on to keep track of different movements in trial
+                movList = {};
                 for s = sampleWindowLength+1:size(GazeData,1)-sampleWindowLength % step through trial data with a moving window of ~20ms (8 samples)
                     
                     if sum(GazeData(s-sampleWindowLength:s+sampleWindowLength,8)==4)>0
@@ -224,8 +225,8 @@ for sub = subjectlist
                     %%%%%%%%%%
                     
                     velSessionData(session).velPhaseData(phase).velTrialData{t} = velocity;
-                    velSessionData(session).velPhaseData(phase).xTrialData{t} = GazeData(:,9);
-                    velSessionData(session).velPhaseData(phase).yTrialData{t} = GazeData(:,10);
+                    velSessionData(session).velPhaseData(phase).xTrialData{t} = GazeData(:,5);
+                    velSessionData(session).velPhaseData(phase).yTrialData{t} = GazeData(:,6);
                     
                     
                     %I-VT classifier
@@ -292,6 +293,13 @@ for sub = subjectlist
                     subMovements(subStep).sessionMovements(session).phaseMovements(phase).trialMovements(t) = {0};
                 end
                 
+                
+                discardTrial = 0;
+                anticipatorySaccade = 0;
+                outsideFixation = 0;
+                noSaccades = 0;
+                noValidData = 0;
+                
                 %find first saccade
                 if isempty(movList) == 0
                     saccList = cell2mat(movList(:,1));
@@ -300,9 +308,7 @@ for sub = subjectlist
                         fixIdx = find(saccList(:,1)==1); %indexes of fixations
                         nextFix = fixIdx(fixIdx>idx); %find next fixation after first saccade
                         saccadeLatency = movList{idx,5}; %find latency of first saccade
-                        discardTrial = 0;
-                        anticipatorySaccade = 0;
-                        outsideFixation = 0;
+                        
                         if saccadeLatency < anticipationThreshold %if anticipatory saccade, or no samples near fixation within first 80ms, mark to be discarded
                             discardTrial = 1;
                             anticipatorySaccade = 1; %mark as anticipatory
@@ -334,6 +340,7 @@ for sub = subjectlist
                         saccadeLatency = NaN;
                         direction = ones(1,size(stimVector,1)+1)*99;
                         discardTrial = 1;
+                        noSaccades = 1;
                         
                     end
                     
@@ -341,9 +348,10 @@ for sub = subjectlist
                     saccadeLatency = NaN;
                     direction = ones(1,size(stimVector,1)+1)*99;
                     discardTrial = 1;
+                    noValidData = 1;
                 end
                 
-                saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData(t,:) = [sub, t, saccadeLatency, direction, discardTrial, anticipatorySaccade, outsideFixation];
+                saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData(t,:) = [sub, t, saccadeLatency, direction, discardTrial, anticipatorySaccade, outsideFixation, noSaccades, noValidData];
                 
                 movList = {};
             end
