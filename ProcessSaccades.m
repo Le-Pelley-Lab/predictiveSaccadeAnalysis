@@ -61,8 +61,8 @@ end
 
 % Algorithm parameters
 WindowLength = 20;
-vThreshold = 100;
-fixGapDurThresh = 75;
+vThreshold = 40;
+fixGapDurThresh = 10;
 fixGapAngleThresh = 0.5;
 medianFilterWindowLength = 5;
 if discardAnticipatory == 1
@@ -261,36 +261,35 @@ for sub = subjectlist
                         aa = aa + 1;
                     end
                 end
+
                 
-                
-                
-                %merge adjacent fixations
+%                 %merge adjacent fixations
                 if isempty(movList) == 0
-                    fixationIndex = find(cell2mat(movList(:,1))==1); %find index of all fixations in previous trial
-                    
-                    if numelements(fixationIndex) > 1 %if there is more than one fixation
-                        for f = 2:size(fixationIndex,1)
-                            %check time between start and end of fixations
-                            fixGap = (movList{fixationIndex(f),2}-movList{fixationIndex(f-1),3})/1000;
-                            %check angle between fixation points
-                            fixGapEyePos = repmat((movList{fixationIndex(f),6}(1,2:4) + movList{fixationIndex(f-1),6}(end,2:4))/2,2,1); %calculate average eye position across both fixations
-                            fixGapGazePos = [movList{fixationIndex(f),6}(1,5:7); movList{fixationIndex(f-1),6}(end,5:7)];
-                            fixGapGazeVector = fixGapEyePos-fixGapGazePos; % create vectors
-                            fixGapAngle = acosd(dot(fixGapGazeVector(1,:),fixGapGazeVector(2,:))/(norm(fixGapGazeVector(1,:))*norm(fixGapGazeVector(2,:)))); %angle between two vectors
-                            
-                            if fixGap < fixGapDurThresh && fixGapAngle < fixGapAngleThresh %if fixations are close enough in time and space, merge
-                                movList{fixationIndex(f-1),4} = sum(sum([movList{fixationIndex(f-1):fixationIndex(f),4}])); %sum all the durations together
-                                movList{fixationIndex(f-1),3} = movList{fixationIndex(f),3};   %change end time to final sample
-                                for gg = fixationIndex(f-1)+1:fixationIndex(f) %combines all of the data points across both fixations and anything in between
-                                    movList{fixationIndex(f-1),6} = [cell2mat(movList(fixationIndex(f-1),6)); cell2mat(movList(gg,6))];
-                                end
-                                movList(fixationIndex(f-1)+1:fixationIndex(f),1) = {-1}; %delete old movements
-                                movList(fixationIndex(f-1),7) = {mean(movList{fixationIndex(f-1),6}(:,9:10))}; %determine new fixation point average
-                            end
-                        end
-                    end
-                    index = find([movList{:,1}]==-1); %remove old fixations from list
-                    movList(index,:) = [];
+%                     fixationIndex = find(cell2mat(movList(:,1))==1); %find index of all fixations in previous trial
+%                     
+%                     if numelements(fixationIndex) > 1 %if there is more than one fixation
+%                         for f = 2:size(fixationIndex,1)
+%                             %check time between start and end of fixations
+%                             fixGap = (movList{fixationIndex(f),2}-movList{fixationIndex(f-1),3})/1000;
+%                             %check angle between fixation points
+%                             fixGapEyePos = repmat((movList{fixationIndex(f),6}(1,2:4) + movList{fixationIndex(f-1),6}(end,2:4))/2,2,1); %calculate average eye position across both fixations
+%                             fixGapGazePos = [movList{fixationIndex(f),6}(1,5:7); movList{fixationIndex(f-1),6}(end,5:7)];
+%                             fixGapGazeVector = fixGapEyePos-fixGapGazePos; % create vectors
+%                             fixGapAngle = acosd(dot(fixGapGazeVector(1,:),fixGapGazeVector(2,:))/(norm(fixGapGazeVector(1,:))*norm(fixGapGazeVector(2,:)))); %angle between two vectors
+%                             
+%                             if fixGap < fixGapDurThresh %&& fixGapAngle < fixGapAngleThresh %if fixations are close enough in time and space, merge
+%                                 movList{fixationIndex(f-1),4} = sum(sum([movList{fixationIndex(f-1):fixationIndex(f),4}])); %sum all the durations together
+%                                 movList{fixationIndex(f-1),3} = movList{fixationIndex(f),3};   %change end time to final sample
+%                                 for gg = fixationIndex(f-1)+1:fixationIndex(f) %combines all of the data points across both fixations and anything in between
+%                                     movList{fixationIndex(f-1),6} = [cell2mat(movList(fixationIndex(f-1),6)); cell2mat(movList(gg,6))];
+%                                 end
+%                                 movList(fixationIndex(f-1)+1:fixationIndex(f),1) = {-1}; %delete old movements
+%                                 movList(fixationIndex(f-1),7) = {mean(movList{fixationIndex(f-1),6}(:,9:10))}; %determine new fixation point average
+%                             end
+%                         end
+%                     end
+%                     index = find([movList{:,1}]==-1); %remove old fixations from list
+%                     movList(index,:) = [];
                     subMovements(subStep).sessionMovements(session).phaseMovements(phase).trialMovements(t) = {movList};
                 else
                     subMovements(subStep).sessionMovements(session).phaseMovements(phase).trialMovements(t) = {0};
@@ -306,8 +305,25 @@ for sub = subjectlist
                 %find first saccade
                 if isempty(movList) == 0
                     saccList = cell2mat(movList(:,1));
-                    idx = find(saccList(:,1)==2,1,'first'); %find the index of the first saccade
-                    if isempty(idx) == 0
+                    saccIdx = find(saccList(:,1)==2);
+                    
+                    %idx = find(saccList(:,1)==2,1,'first'); %find the index of the first saccade
+                    foundSaccade = 0;
+                    if isempty(saccIdx) == 0
+                        aa = 1;
+                        idx = saccIdx(aa);
+                        while foundSaccade == 0 && aa <= sum(saccList(:,1)==2)
+                            idx = saccIdx(aa);
+                            foundSaccade = 1;
+                            saccadeLength = movList{idx,4};
+                            if saccadeLength < fixGapDurThresh;
+                                foundSaccade = 0;
+                                aa = aa + 1;
+                            elseif saccadeLength > fixGapDurThresh && aa > 1
+                                qq = 1;
+                            end
+                            
+                        end
                         fixIdx = find(saccList(:,1)==1); %indexes of fixations
                         nextFix = fixIdx(fixIdx>idx); %find next fixation after first saccade
                         saccadeLatency = movList{idx,5}; %find latency of first saccade
@@ -338,7 +354,9 @@ for sub = subjectlist
                             direction(end) = 1; % code as going "somewhere else"
                         end
                         
-                    else %if no saccades detected in trial
+                    end
+                    
+                    if foundSaccade == 0 %if no saccades detected in trial
                         
                         saccadeLatency = NaN;
                         direction = ones(1,size(stimVector,1)+1)*99;

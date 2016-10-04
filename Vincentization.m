@@ -5,7 +5,7 @@ clear all
 global quantiles
 
 
-quantiles = 3;
+quantiles = 10;
 %load('SaccadeLatencyData_Session2.mat')
 maxSubs = 40;
 subNums = zeros(maxSubs,1);
