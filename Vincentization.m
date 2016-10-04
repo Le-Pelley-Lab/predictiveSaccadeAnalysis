@@ -5,7 +5,7 @@ clear all
 global quantiles
 
 
-quantiles = 10;
+quantiles = 3;
 %load('SaccadeLatencyData_Session2.mat')
 maxSubs = 40;
 subNums = zeros(maxSubs,1);
@@ -166,7 +166,7 @@ save('VincentizerCheck_Predictiveness.mat');
 
 global fid1
 
-fid1 = fopen('Vincentized_MvNP_noOmi.csv', 'w');
+fid1 = fopen('Vincentized_MvNP_noOmi_2.csv', 'w');
 
 outputHeaders;
 

@@ -11,6 +11,8 @@ for session = 1:2
         hold on
         plot([1:length(velSessionData(session).velPhaseData(phase).velTrialData{t})], repmat(30,1,length(velSessionData(session).velPhaseData(phase).velTrialData{t})))
         hold off
+        figure(3)
+        plot([1:length(velSessionData(session).velPhaseData(phase).xRawTrialData{t})]', velSessionData(session).velPhaseData(phase).xRawTrialData{t}, [1:length(velSessionData(session).velPhaseData(phase).xRawTrialData{t})]', velSessionData(session).velPhaseData(phase).yRawTrialData{t})
         pause
         
         end

@@ -140,6 +140,9 @@ for sub = subjectlist
                 GazeData(:,9) = bsxfun(@times,GazeData(:,9),res(1));
                 GazeData(:,10) = bsxfun(@times,GazeData(:,10),res(2));
                 
+                velSessionData(session).velPhaseData(phase).xRawTrialData{t} = GazeData(:,9);
+                velSessionData(session).velPhaseData(phase).yRawTrialData{t} = GazeData(:,10);
+                
                 % Interpolate Gaps
                 GapsBeforeFill = sum(GazeData(:,8)==4)/size(GazeData,1);
                 if GapsBeforeFill < 1 && GapsBeforeFill > 0 % valid data exists
@@ -376,10 +379,10 @@ function dataOut = fillMissing(dataIn, GapThresh, freqMS)
 
 
 % Interpolation of gaps
-while dataIn(1,3) == 4 % remove gaps at start
+while dataIn(1,8) == 4 % remove gaps at start
     dataIn(1,:) = [];
 end
-while dataIn(end,3) == 4 % remove gaps at end
+while dataIn(end,8) == 4 % remove gaps at end
     dataIn(end,:) = [];
 end
 
@@ -390,8 +393,8 @@ intCnt = 0;
 checkPos = 2;
 while checkPos < size(dataIn,1) % check each position in turn
     endPos = checkPos; % set end to current check
-    if dataIn(checkPos,3)==4 % if missing (otherwise increase check position)
-        while dataIn(endPos,3)==4 % step through until valid data is found
+    if dataIn(checkPos,8)==4 % if missing (otherwise increase check position)
+        while dataIn(endPos,8)==4 % step through until valid data is found
             endPos = endPos + 1; % increase end position
         end
         if endPos-checkPos < (GapThresh/freqMS) % if that gap is smalle enough
@@ -409,9 +412,15 @@ iFills(intCnt+1:end,:) = []; % remove empty rows of array
 for r = 1:size(iFills,1)
     intSteps = 0:1/(iFills(r,2)-iFills(r,1)):1; % calculate appropriate distribution across fill range
     
-    x = dataIn(iFills(r,1),1) + (dataIn(iFills(r,2),1)-dataIn(iFills(r,1),1))*intSteps; % interpolation of x
-    y = dataIn(iFills(r,1),2) + (dataIn(iFills(r,2),2)-dataIn(iFills(r,1),2))*intSteps; % interpolation of y
-    dataIn(iFills(r,1):iFills(r,2),1:3) = [round(x)' round(y)' zeros(size(x,2),1)]; % update array
+    EyePosX = dataIn(iFills(r,1),2) + (dataIn(iFills(r,2),2)-dataIn(iFills(r,1),2))*intSteps; % interpolation of x
+    EyePosY = dataIn(iFills(r,1),3) + (dataIn(iFills(r,2),3)-dataIn(iFills(r,1),3))*intSteps; % interpolation of y
+    EyePosZ = dataIn(iFills(r,1),4) + (dataIn(iFills(r,2),4)-dataIn(iFills(r,1),4))*intSteps; % interpolation of z\
+    GazePosX = dataIn(iFills(r,1),5) + (dataIn(iFills(r,2),5)-dataIn(iFills(r,1),5))*intSteps;
+    GazePosY = dataIn(iFills(r,1),6) + (dataIn(iFills(r,2),6)-dataIn(iFills(r,1),6))*intSteps;
+    GazePosZ = dataIn(iFills(r,1),7) + (dataIn(iFills(r,2),7)-dataIn(iFills(r,1),7))*intSteps;
+    GazePos2dX = dataIn(iFills(r,1),9) + (dataIn(iFills(r,2),9)-dataIn(iFills(r,1),9))*intSteps;
+    GazePos2dY = dataIn(iFills(r,1),10) + (dataIn(iFills(r,2),10)-dataIn(iFills(r,1),10))*intSteps;
+    dataIn(iFills(r,1):iFills(r,2),2:10) = [round(EyePosX)' round(EyePosY)' round(EyePosZ)' round(GazePosX)' round(GazePosY)' round(GazePosZ)' zeros(size(EyePosX,2),1) round(GazePos2dX)' round(GazePos2dY)']; % update array
 end
 
 dataOut = dataIn;
