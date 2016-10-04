@@ -5,7 +5,7 @@ clear all
 global quantiles
 
 
-quantiles = 10;
+quantiles = 3;
 %load('SaccadeLatencyData_Session2.mat')
 maxSubs = 40;
 subNums = zeros(maxSubs,1);
@@ -51,6 +51,8 @@ for sub = minSub : maxSub
         discardedTrials(s) = 0;
         anticipatorySaccades(s) = 0;
         outsideFixation(s) = 0;
+        noSaccades(s) = 0;
+        noValidData(s) = 0;
         
         subNums(s) = saccadeSessionData(1).saccadePhaseData(1).summarySaccadeData(1,1);
         
@@ -67,12 +69,14 @@ for sub = minSub : maxSub
                 discardedTrials(s) = discardedTrials(s) + sum(saccadeData(:,11));
                 anticipatorySaccades(s) = anticipatorySaccades(s) + sum(saccadeData(:,12));
                 outsideFixation(s) = outsideFixation(s) + sum(saccadeData(:,13));
+                noSaccades(s) = noSaccades(s) + sum(saccadeData(:,14));
+                noValidData(s) = noValidData(s) + sum(saccadeData(:,15));
                 
                 saccadeData(saccadeData(:,11)==1,:) = []; %remove discarded trials
                 
-                sessionProps(session).phaseProps(phase).predictiveProps = saccadeData(saccadeData(:,14) == 1 | saccadeData(:,14) == 2,:);
-                sessionProps(session).phaseProps(phase).nonPredictiveProps = saccadeData(saccadeData(:,14) == 3 | saccadeData(:,14) == 4,:);
-                sessionProps(session).phaseProps(phase).doubleProps = saccadeData(saccadeData(:,14) == 5 | saccadeData(:,14) == 6,:);
+                sessionProps(session).phaseProps(phase).predictiveProps = saccadeData(saccadeData(:,16) == 1 | saccadeData(:,16) == 2,:);
+                sessionProps(session).phaseProps(phase).nonPredictiveProps = saccadeData(saccadeData(:,16) == 3 | saccadeData(:,16) == 4,:);
+                sessionProps(session).phaseProps(phase).doubleProps = saccadeData(saccadeData(:,16) == 5 | saccadeData(:,16) == 6,:);
                 
             end
         end
@@ -104,11 +108,11 @@ for sub = minSub : maxSub
             
             for t = 1:size(tempPredictiveData,1)
                 saccDir = find(tempPredictiveData(t,4:10)==1);
-                if saccDir == tempPredictiveData(t,15) %saccade to target
+                if saccDir == tempPredictiveData(t,17) %saccade to target
                     predictivePropTarget(s,d) = predictivePropTarget(s,d) + 1;
-                elseif saccDir == tempPredictiveData(t,16) %saccade to main distractor
+                elseif saccDir == tempPredictiveData(t,18) %saccade to main distractor
                     predictivePropDist(s,d) = predictivePropDist(s,d) + 1;
-                elseif saccDir == tempPredictiveData(t,17) %saccade to sec distractor
+                elseif saccDir == tempPredictiveData(t,19) %saccade to sec distractor
                     predictiveProp2Dist(s,d) = predictiveProp2Dist(s,d) + 1;
                 end
             end
@@ -116,11 +120,11 @@ for sub = minSub : maxSub
             
             for t = 1:size(tempNonPredictiveData,1)
                 saccDir = find(tempNonPredictiveData(t,4:10)==1);
-                if saccDir == tempNonPredictiveData(t,15) %saccade to target
+                if saccDir == tempNonPredictiveData(t,17) %saccade to target
                     nonPredictivePropTarget(s,d) = nonPredictivePropTarget(s,d) + 1;
-                elseif saccDir == tempNonPredictiveData(t,16) %saccade to main distractor
+                elseif saccDir == tempNonPredictiveData(t,18) %saccade to main distractor
                     nonPredictivePropDist(s,d) = nonPredictivePropDist(s,d) + 1;
-                elseif saccDir == tempNonPredictiveData(t,17) %saccade to sec distractor
+                elseif saccDir == tempNonPredictiveData(t,19) %saccade to sec distractor
                     nonPredictiveProp2Dist(s,d) = nonPredictiveProp2Dist(s,d) + 1;
                 end
             end
@@ -128,11 +132,11 @@ for sub = minSub : maxSub
             
             for t = 1:size(tempDoubleData,1)
                 saccDir = find(tempDoubleData(t,4:10)==1);
-                if saccDir == tempDoubleData(t,15) %saccade to target
+                if saccDir == tempDoubleData(t,17) %saccade to target
                     doublePropTarget(s,d) = doublePropTarget(s,d) + 1;
-                elseif saccDir == tempDoubleData(t,16) %saccade to main distractor
+                elseif saccDir == tempDoubleData(t,18) %saccade to main distractor
                     doublePropDist(s,d) = doublePropDist(s,d) + 1;
-                elseif saccDir == tempDoubleData(t,17) %saccade to sec distractor
+                elseif saccDir == tempDoubleData(t,19) %saccade to sec distractor
                     doubleProp2Dist(s,d) = doubleProp2Dist(s,d) + 1;
                 end
             end
@@ -162,7 +166,7 @@ save('VincentizerCheck_Predictiveness.mat');
 
 global fid1
 
-fid1 = fopen('Vincentized_MvNP_noOmi.csv', 'w');
+fid1 = fopen('Vincentized_MvNP_noOmi_2.csv', 'w');
 
 outputHeaders;
 
@@ -172,6 +176,8 @@ for ii = 1 : s
     fprintf(fid1,'%d,', discardedTrials(ii));
     fprintf(fid1,'%d,', anticipatorySaccades(ii));
     fprintf(fid1,'%d,', outsideFixation(ii));
+    fprintf(fid1,'%d,', noSaccades(ii));
+    fprintf(fid1,'%d,', noValidData(ii));
     fprintf(fid1,',');
     fprintf(fid1,',');
     for d = 1:quantiles
@@ -246,6 +252,8 @@ fprintf(fid1,',');
 fprintf(fid1,'discardedTrials,');
 fprintf(fid1,'anticipatorySaccades,');
 fprintf(fid1,'outsideFixations,');
+fprintf(fid1,'noSaccades,');
+fprintf(fid1,'noValidData,');
 
 
 

@@ -61,9 +61,10 @@ end
 
 % Algorithm parameters
 WindowLength = 20;
-vThreshold = 30;
-fixGapDurThresh = 75;
+vThreshold = 40;
+fixGapDurThresh = 10;
 fixGapAngleThresh = 0.5;
+medianFilterWindowLength = 5;
 if discardAnticipatory == 1
     anticipationThreshold = 80;
 else
@@ -109,7 +110,7 @@ for sub = subjectlist
         
         for phase = 1:maxPhases(session)
             
-            saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData = zeros(maxTrials(session, phase),size(stimVector,1)+7); %initiate summary data array
+            saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData = zeros(maxTrials(session, phase),size(stimVector,1)+9); %initiate summary data array
             
             clc; disp(['Processing Subject ',num2str(sub), ' Session ', num2str(session), ' Phase ', num2str(phase)])
             
@@ -139,6 +140,9 @@ for sub = subjectlist
                 GazeData(:,9) = bsxfun(@times,GazeData(:,9),res(1));
                 GazeData(:,10) = bsxfun(@times,GazeData(:,10),res(2));
                 
+                velSessionData(session).velPhaseData(phase).xRawTrialData{t} = GazeData(:,9);
+                velSessionData(session).velPhaseData(phase).yRawTrialData{t} = GazeData(:,10);
+                
                 % Interpolate Gaps
                 GapsBeforeFill = sum(GazeData(:,8)==4)/size(GazeData,1);
                 if GapsBeforeFill < 1 && GapsBeforeFill > 0 % valid data exists
@@ -146,6 +150,43 @@ for sub = subjectlist
                 end
                 GapsAfterFill = sum(GazeData(:,8)==4)/size(GazeData,1);
                 
+                % apply median filter to smooth out noise in the gaze
+                % position samples
+                newX = zeros(size(GazeData(:,5)));
+                newY = zeros(size(GazeData(:,6)));
+                newZ = zeros(size(GazeData(:,7)));
+                
+                for ss = 1:size(GazeData,1)
+                    windowStep = 2;
+                    windowCheck = 1;
+                    while windowCheck == 1
+                        windowStart = ss-windowStep;
+                        windowEnd = ss+windowStep;
+                        if windowStart < 1 || windowEnd > size(GazeData,1)
+                            windowStep = windowStep-1;
+                        elseif sum(GazeData(windowStart:windowEnd,8)==4) > 1
+                            windowStep = windowStep-1;
+                        else
+                            windowCheck = 0;
+                        end
+                    end
+                    
+                    if windowStep > -1
+                        newX(ss) = mean(GazeData(windowStart:windowEnd,5));
+                        newY(ss) = mean(GazeData(windowStart:windowEnd,6));
+                        newZ(ss) = mean(GazeData(windowStart:windowEnd,7));
+                    else
+                        newX(ss) = 0;
+                        newY(ss) = 0;
+                        newZ(ss) = 0;
+                    end
+                end
+                
+                % Fix this so that we can store the raw unfiltered coords as
+                % well
+                GazeData(:,5) = newX;
+                GazeData(:,6) = newY;
+                GazeData(:,7) = newZ;
                 
                 % Start of I-VT classifier
                 velocity = zeros(1, size(GazeData,1)-sampleWindowLength); % set up velocity array
@@ -165,8 +206,9 @@ for sub = subjectlist
                         end
                     end
                 end
-                
+                aa = 1;
                 bb = 0; %used later on to keep track of different movements in trial
+                movList = {};
                 for s = sampleWindowLength+1:size(GazeData,1)-sampleWindowLength % step through trial data with a moving window of ~20ms (8 samples)
                     
                     if sum(GazeData(s-sampleWindowLength:s+sampleWindowLength,8)==4)>0
@@ -185,7 +227,9 @@ for sub = subjectlist
                     %              plot(time, GazeData(:,9)', time, GazeData(:,10)', time, [velocity 0 0 0], time, repmat(30,1,length(time)))
                     %%%%%%%%%%
                     
-                    
+                    velSessionData(session).velPhaseData(phase).velTrialData{t} = velocity;
+                    velSessionData(session).velPhaseData(phase).xTrialData{t} = GazeData(:,5);
+                    velSessionData(session).velPhaseData(phase).yTrialData{t} = GazeData(:,6);
                     
                     
                     %I-VT classifier
@@ -217,50 +261,73 @@ for sub = subjectlist
                         aa = aa + 1;
                     end
                 end
+
                 
-                %merge adjacent fixations
+%                 %merge adjacent fixations
                 if isempty(movList) == 0
-                    fixationIndex = find(cell2mat(movList(:,1))==1); %find index of all fixations in previous trial
-                    
-                    if numelements(fixationIndex) > 1 %if there is more than one fixation
-                        for f = 2:size(fixationIndex,1)
-                            %check time between start and end of fixations
-                            fixGap = (movList{fixationIndex(f),2}-movList{fixationIndex(f-1),3})/1000;
-                            %check angle between fixation points
-                            fixGapEyePos = repmat((movList{fixationIndex(f),6}(1,2:4) + movList{fixationIndex(f-1),6}(end,2:4))/2,2,1); %calculate average eye position across both fixations
-                            fixGapGazePos = [movList{fixationIndex(f),6}(1,5:7); movList{fixationIndex(f-1),6}(end,5:7)];
-                            fixGapGazeVector = fixGapEyePos-fixGapGazePos; % create vectors
-                            fixGapAngle = acosd(dot(fixGapGazeVector(1,:),fixGapGazeVector(2,:))/(norm(fixGapGazeVector(1,:))*norm(fixGapGazeVector(2,:)))); %angle between two vectors
-                            
-                            if fixGap < fixGapDurThresh && fixGapAngle < fixGapAngleThresh %if fixations are close enough in time and space, merge
-                                movList{fixationIndex(f-1),4} = sum(sum([movList{fixationIndex(f-1):fixationIndex(f),4}])); %sum all the durations together
-                                movList{fixationIndex(f-1),3} = movList{fixationIndex(f),3};   %change end time to final sample
-                                for gg = fixationIndex(f-1)+1:fixationIndex(f) %combines all of the data points across both fixations and anything in between
-                                    movList{fixationIndex(f-1),6} = [cell2mat(movList(fixationIndex(f-1),6)); cell2mat(movList(gg,6))];
-                                end
-                                movList(fixationIndex(f-1)+1:fixationIndex(f),1) = {-1}; %delete old movements
-                                movList(fixationIndex(f-1),7) = {mean(movList{fixationIndex(f-1),6}(:,9:10))}; %determine new fixation point average
-                            end
-                        end
-                    end
-                    index = find([movList{:,1}]==-1); %remove old fixations from list
-                    movList(index,:) = [];
+%                     fixationIndex = find(cell2mat(movList(:,1))==1); %find index of all fixations in previous trial
+%                     
+%                     if numelements(fixationIndex) > 1 %if there is more than one fixation
+%                         for f = 2:size(fixationIndex,1)
+%                             %check time between start and end of fixations
+%                             fixGap = (movList{fixationIndex(f),2}-movList{fixationIndex(f-1),3})/1000;
+%                             %check angle between fixation points
+%                             fixGapEyePos = repmat((movList{fixationIndex(f),6}(1,2:4) + movList{fixationIndex(f-1),6}(end,2:4))/2,2,1); %calculate average eye position across both fixations
+%                             fixGapGazePos = [movList{fixationIndex(f),6}(1,5:7); movList{fixationIndex(f-1),6}(end,5:7)];
+%                             fixGapGazeVector = fixGapEyePos-fixGapGazePos; % create vectors
+%                             fixGapAngle = acosd(dot(fixGapGazeVector(1,:),fixGapGazeVector(2,:))/(norm(fixGapGazeVector(1,:))*norm(fixGapGazeVector(2,:)))); %angle between two vectors
+%                             
+%                             if fixGap < fixGapDurThresh %&& fixGapAngle < fixGapAngleThresh %if fixations are close enough in time and space, merge
+%                                 movList{fixationIndex(f-1),4} = sum(sum([movList{fixationIndex(f-1):fixationIndex(f),4}])); %sum all the durations together
+%                                 movList{fixationIndex(f-1),3} = movList{fixationIndex(f),3};   %change end time to final sample
+%                                 for gg = fixationIndex(f-1)+1:fixationIndex(f) %combines all of the data points across both fixations and anything in between
+%                                     movList{fixationIndex(f-1),6} = [cell2mat(movList(fixationIndex(f-1),6)); cell2mat(movList(gg,6))];
+%                                 end
+%                                 movList(fixationIndex(f-1)+1:fixationIndex(f),1) = {-1}; %delete old movements
+%                                 movList(fixationIndex(f-1),7) = {mean(movList{fixationIndex(f-1),6}(:,9:10))}; %determine new fixation point average
+%                             end
+%                         end
+%                     end
+%                     index = find([movList{:,1}]==-1); %remove old fixations from list
+%                     movList(index,:) = [];
                     subMovements(subStep).sessionMovements(session).phaseMovements(phase).trialMovements(t) = {movList};
                 else
                     subMovements(subStep).sessionMovements(session).phaseMovements(phase).trialMovements(t) = {0};
                 end
                 
+                
+                discardTrial = 0;
+                anticipatorySaccade = 0;
+                outsideFixation = 0;
+                noSaccades = 0;
+                noValidData = 0;
+                
                 %find first saccade
                 if isempty(movList) == 0
                     saccList = cell2mat(movList(:,1));
-                    idx = find(saccList(:,1)==2,1,'first'); %find the index of the first saccade
-                    if isempty(idx) == 0
+                    saccIdx = find(saccList(:,1)==2);
+                    
+                    %idx = find(saccList(:,1)==2,1,'first'); %find the index of the first saccade
+                    foundSaccade = 0;
+                    if isempty(saccIdx) == 0
+                        aa = 1;
+                        idx = saccIdx(aa);
+                        while foundSaccade == 0 && aa <= sum(saccList(:,1)==2)
+                            idx = saccIdx(aa);
+                            foundSaccade = 1;
+                            saccadeLength = movList{idx,4};
+                            if saccadeLength < fixGapDurThresh;
+                                foundSaccade = 0;
+                                aa = aa + 1;
+                            elseif saccadeLength > fixGapDurThresh && aa > 1
+                                qq = 1;
+                            end
+                            
+                        end
                         fixIdx = find(saccList(:,1)==1); %indexes of fixations
                         nextFix = fixIdx(fixIdx>idx); %find next fixation after first saccade
                         saccadeLatency = movList{idx,5}; %find latency of first saccade
-                        discardTrial = 0;
-                        anticipatorySaccade = 0;
-                        outsideFixation = 0;
+                        
                         if saccadeLatency < anticipationThreshold %if anticipatory saccade, or no samples near fixation within first 80ms, mark to be discarded
                             discardTrial = 1;
                             anticipatorySaccade = 1; %mark as anticipatory
@@ -287,11 +354,14 @@ for sub = subjectlist
                             direction(end) = 1; % code as going "somewhere else"
                         end
                         
-                    else %if no saccades detected in trial
+                    end
+                    
+                    if foundSaccade == 0 %if no saccades detected in trial
                         
                         saccadeLatency = NaN;
                         direction = ones(1,size(stimVector,1)+1)*99;
                         discardTrial = 1;
+                        noSaccades = 1;
                         
                     end
                     
@@ -299,9 +369,10 @@ for sub = subjectlist
                     saccadeLatency = NaN;
                     direction = ones(1,size(stimVector,1)+1)*99;
                     discardTrial = 1;
+                    noValidData = 1;
                 end
                 
-                saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData(t,:) = [sub, t, saccadeLatency, direction, discardTrial, anticipatorySaccade, outsideFixation];
+                saccadeSessionData(session).saccadePhaseData(phase).summarySaccadeData(t,:) = [sub, t, saccadeLatency, direction, discardTrial, anticipatorySaccade, outsideFixation, noSaccades, noValidData];
                 
                 movList = {};
             end
@@ -310,6 +381,7 @@ for sub = subjectlist
     
     
     save(['SummarySaccadeDataP',num2str(sub),'.mat'],'saccadeSessionData');
+    save(['RawVelocityDataP', num2str(sub),'.mat'], 'velSessionData');
     
 end
 
@@ -325,10 +397,10 @@ function dataOut = fillMissing(dataIn, GapThresh, freqMS)
 
 
 % Interpolation of gaps
-while dataIn(1,3) == 4 % remove gaps at start
+while dataIn(1,8) == 4 % remove gaps at start
     dataIn(1,:) = [];
 end
-while dataIn(end,3) == 4 % remove gaps at end
+while dataIn(end,8) == 4 % remove gaps at end
     dataIn(end,:) = [];
 end
 
@@ -339,8 +411,8 @@ intCnt = 0;
 checkPos = 2;
 while checkPos < size(dataIn,1) % check each position in turn
     endPos = checkPos; % set end to current check
-    if dataIn(checkPos,3)==4 % if missing (otherwise increase check position)
-        while dataIn(endPos,3)==4 % step through until valid data is found
+    if dataIn(checkPos,8)==4 % if missing (otherwise increase check position)
+        while dataIn(endPos,8)==4 % step through until valid data is found
             endPos = endPos + 1; % increase end position
         end
         if endPos-checkPos < (GapThresh/freqMS) % if that gap is smalle enough
@@ -358,9 +430,15 @@ iFills(intCnt+1:end,:) = []; % remove empty rows of array
 for r = 1:size(iFills,1)
     intSteps = 0:1/(iFills(r,2)-iFills(r,1)):1; % calculate appropriate distribution across fill range
     
-    x = dataIn(iFills(r,1),1) + (dataIn(iFills(r,2),1)-dataIn(iFills(r,1),1))*intSteps; % interpolation of x
-    y = dataIn(iFills(r,1),2) + (dataIn(iFills(r,2),2)-dataIn(iFills(r,1),2))*intSteps; % interpolation of y
-    dataIn(iFills(r,1):iFills(r,2),1:3) = [round(x)' round(y)' zeros(size(x,2),1)]; % update array
+    EyePosX = dataIn(iFills(r,1),2) + (dataIn(iFills(r,2),2)-dataIn(iFills(r,1),2))*intSteps; % interpolation of x
+    EyePosY = dataIn(iFills(r,1),3) + (dataIn(iFills(r,2),3)-dataIn(iFills(r,1),3))*intSteps; % interpolation of y
+    EyePosZ = dataIn(iFills(r,1),4) + (dataIn(iFills(r,2),4)-dataIn(iFills(r,1),4))*intSteps; % interpolation of z\
+    GazePosX = dataIn(iFills(r,1),5) + (dataIn(iFills(r,2),5)-dataIn(iFills(r,1),5))*intSteps;
+    GazePosY = dataIn(iFills(r,1),6) + (dataIn(iFills(r,2),6)-dataIn(iFills(r,1),6))*intSteps;
+    GazePosZ = dataIn(iFills(r,1),7) + (dataIn(iFills(r,2),7)-dataIn(iFills(r,1),7))*intSteps;
+    GazePos2dX = dataIn(iFills(r,1),9) + (dataIn(iFills(r,2),9)-dataIn(iFills(r,1),9))*intSteps;
+    GazePos2dY = dataIn(iFills(r,1),10) + (dataIn(iFills(r,2),10)-dataIn(iFills(r,1),10))*intSteps;
+    dataIn(iFills(r,1):iFills(r,2),2:10) = [round(EyePosX)' round(EyePosY)' round(EyePosZ)' round(GazePosX)' round(GazePosY)' round(GazePosZ)' zeros(size(EyePosX,2),1) round(GazePos2dX)' round(GazePos2dY)']; % update array
 end
 
 dataOut = dataIn;
