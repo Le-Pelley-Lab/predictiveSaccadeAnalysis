@@ -172,9 +172,9 @@ for sub = subjectlist
                     end
                     
                     if windowStep > -1
-                        newX(ss) = median(GazeData(windowStart:windowEnd,5));
-                        newY(ss) = median(GazeData(windowStart:windowEnd,6));
-                        newZ(ss) = median(GazeData(windowStart:windowEnd,7));
+                        newX(ss) = mean(GazeData(windowStart:windowEnd,5));
+                        newY(ss) = mean(GazeData(windowStart:windowEnd,6));
+                        newZ(ss) = mean(GazeData(windowStart:windowEnd,7));
                     else
                         newX(ss) = 0;
                         newY(ss) = 0;
