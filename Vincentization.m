@@ -7,7 +7,7 @@ global quantiles
 
 quantiles = 3;
 %load('SaccadeLatencyData_Session2.mat')
-maxSubs = 40;
+maxSubs = 100;
 subNums = zeros(maxSubs,1);
 predictivePropDist = zeros(maxSubs,quantiles);
 predictiveProp2Dist = zeros(maxSubs,quantiles);
@@ -85,9 +85,9 @@ for sub = minSub : maxSub
         combinedProps.nonPredictiveProps = [sessionProps(1).phaseProps(1).nonPredictiveProps; sessionProps(1).phaseProps(2).nonPredictiveProps; sessionProps(2).phaseProps(1).nonPredictiveProps];
         combinedProps.doubleProps = [sessionProps(1).phaseProps(1).doubleProps; sessionProps(1).phaseProps(2).doubleProps; sessionProps(2).phaseProps(1).doubleProps];
         
-        latencyDeciles.predictive(s,1:quantiles) = quantile(combinedProps.predictiveProps(:,3),quantiles);
-        latencyDeciles.nonPredictive(s,1:quantiles) = quantile(combinedProps.nonPredictiveProps(:,3), quantiles);
-        latencyDeciles.double(s,1:quantiles) = quantile(combinedProps.doubleProps(:,3), quantiles);
+        latencyDeciles.predictive(s,1:quantiles-1) = quantile(combinedProps.predictiveProps(:,3),quantiles-1);
+        latencyDeciles.nonPredictive(s,1:quantiles-1) = quantile(combinedProps.nonPredictiveProps(:,3), quantiles-1);
+        latencyDeciles.double(s,1:quantiles-1) = quantile(combinedProps.doubleProps(:,3), quantiles-1);
         
         for d = 1:quantiles
             
@@ -101,9 +101,19 @@ for sub = minSub : maxSub
                 startDecDouble = latencyDeciles.double(s,d-1);
             end
             
-            tempPredictiveData = combinedProps.predictiveProps(combinedProps.predictiveProps(:,3)<latencyDeciles.predictive(s,d) & combinedProps.predictiveProps(:,3) > startDecPredictive,:);
-            tempNonPredictiveData = combinedProps.nonPredictiveProps(combinedProps.nonPredictiveProps(:,3)<latencyDeciles.nonPredictive(s,d) & combinedProps.nonPredictiveProps(:,3) > startDecNonPredictive,:);
-            tempDoubleData = combinedProps.doubleProps(combinedProps.doubleProps(:,3)<latencyDeciles.double(s,d) & combinedProps.doubleProps(:,3) > startDecDouble,:);
+            if d == quantiles
+                endDecPredictive = inf;
+                endDecNonPredictive = inf;
+                endDecDouble = inf;
+            else
+                endDecPredictive = latencyDeciles.predictive(s,d);
+                endDecNonPredictive = latencyDeciles.nonPredictive(s,d);
+                endDecDouble = latencyDeciles.double(s,d);
+            end
+            
+            tempPredictiveData = combinedProps.predictiveProps(combinedProps.predictiveProps(:,3)<=endDecPredictive & combinedProps.predictiveProps(:,3) > startDecPredictive,:);
+            tempNonPredictiveData = combinedProps.nonPredictiveProps(combinedProps.nonPredictiveProps(:,3)<=endDecNonPredictive & combinedProps.nonPredictiveProps(:,3) > startDecNonPredictive,:);
+            tempDoubleData = combinedProps.doubleProps(combinedProps.doubleProps(:,3)<=endDecDouble & combinedProps.doubleProps(:,3) > startDecDouble,:);
             
             
             for t = 1:size(tempPredictiveData,1)
@@ -117,6 +127,7 @@ for sub = minSub : maxSub
                 end
             end
             predictiveNum(s,d) = size(tempPredictiveData,1);
+            predictiveLatency(s,d) = sum(tempPredictiveData(:,3));
             
             for t = 1:size(tempNonPredictiveData,1)
                 saccDir = find(tempNonPredictiveData(t,4:10)==1);
@@ -129,6 +140,7 @@ for sub = minSub : maxSub
                 end
             end
             nonPredictiveNum(s,d) = size(tempNonPredictiveData,1);
+            nonPredictiveLatency(s,d) = sum(tempNonPredictiveData(:,3));
             
             for t = 1:size(tempDoubleData,1)
                 saccDir = find(tempDoubleData(t,4:10)==1);
@@ -141,20 +153,24 @@ for sub = minSub : maxSub
                 end
             end
             doubleNum(s,d) = size(tempDoubleData,1);
+            doubleLatency(s,d) = sum(tempDoubleData(:,3));
         end
         
         
         predictivePropDist(s,:) = predictivePropDist(s,:)./predictiveNum(s,:);
         predictivePropTarget(s,:) = predictivePropTarget(s,:)./predictiveNum(s,:);
         predictiveProp2Dist(s,:) = predictiveProp2Dist(s,:)./predictiveNum(s,:);
+        predictiveLatency(s,:) = predictiveLatency(s,:)./predictiveNum(s,:);
         
         nonPredictivePropDist(s,:) = nonPredictivePropDist(s,:)./nonPredictiveNum(s,:);
         nonPredictivePropTarget(s,:) = nonPredictivePropTarget(s,:)./nonPredictiveNum(s,:);
         nonPredictiveProp2Dist(s,:) = nonPredictiveProp2Dist(s,:)./nonPredictiveNum(s,:);
+        nonPredictiveLatency(s,:) = nonPredictiveLatency(s,:)./nonPredictiveNum(s,:);
         
         doublePropDist(s,:) = doublePropDist(s,:)./doubleNum(s,:);
         doubleProp2Dist(s,:) = doubleProp2Dist(s,:)./doubleNum(s,:);
         doublePropTarget(s,:) = doublePropTarget(s,:)./doubleNum(s,:);
+        doubleLatency(s,:) = doubleLatency(s,:)./doubleNum(s,:);
         
         
     else
@@ -166,7 +182,7 @@ save('VincentizerCheck_Predictiveness.mat');
 
 global fid1
 
-fid1 = fopen('Vincentized_MvNP_noOmi_2.csv', 'w');
+fid1 = fopen('Vincentized_MvNP_noOmi.csv', 'w');
 
 outputHeaders;
 
@@ -181,7 +197,7 @@ for ii = 1 : s
     fprintf(fid1,',');
     fprintf(fid1,',');
     for d = 1:quantiles
-        fprintf(fid1,'%8.6f,', latencyDeciles.predictive(ii,d));
+        fprintf(fid1,'%8.6f,',predictiveLatency(ii,d));
     end
     fprintf(fid1,',');
     for d = 1:quantiles
@@ -198,7 +214,7 @@ for ii = 1 : s
     fprintf(fid1,',');
     fprintf(fid1,',');
     for d = 1:quantiles
-        fprintf(fid1,'%8.6f,', latencyDeciles.nonPredictive(ii,d));
+        fprintf(fid1,'%8.6f,', nonPredictiveLatency(ii,d));
     end
     fprintf(fid1,',');
     for d = 1:quantiles
@@ -215,7 +231,7 @@ for ii = 1 : s
     fprintf(fid1,',');
     fprintf(fid1,',');
     for d = 1:quantiles
-        fprintf(fid1,'%8.6f,', latencyDeciles.double(ii,d));
+        fprintf(fid1,'%8.6f,', doubleLatency(ii,d));
     end
     fprintf(fid1,',');
     for d = 1:quantiles
