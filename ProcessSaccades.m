@@ -2,7 +2,7 @@ function ProcessSaccades(subjectlist, ROIs, varargin)
 % ProcessSaccades: I-VT Algorithm for determining saccade direction and
 % latency from Tobii eyetracker data
 %
-% ProcessSaccades(subjectlist, ROIs, [fixationCoords], [discardAnticipatorySaccades], [discardOutsideFixationSaccades])
+% ProcessSaccades(subjectlist, ROIs, [fixationCoords], [discardAnticipatorySaccades], [discardOutsideFixationSaccades], [graphVersion])
 % subjectlist is a vector of participant numbers, e.g., [1:5 8 9:15].
 %
 % ROIs is a list of the coordinates of stimuli of interest (in PTB pixel
@@ -44,9 +44,13 @@ end
 if isempty(varargin{3})
     varargin{3} = 1;
 end
+if isempty(varargin{4})
+	varargin{4} = false;
+end
 fixationCoords = varargin{1};
 discardAnticipatory = varargin{2};
 discardOutsideFixation = varargin{3};
+graphVersion = varargin{4};
 
 % if we do not include ROIs, then assume default of predictiveness experimental program
 if isempty(ROIs)
@@ -77,6 +81,9 @@ maxSub = length(subjectlist);
 maxPhases = [2,1]; % Session 1 = 2 phases; Session 2 = 1 phase
 maxTrials = [180, 288; 468, 0]; % Sess 1 Ph 1 = 180 trials, Sess 1 Ph 2 = 288 trials. Sess 2 Ph 1 = 468 trials
 
+if graphVersion
+	trialsToCheck = []; % input a list of trials here for graphs to be generated
+end
 %Initiate data array
 %trialMovements = struct(cell(maxSub,maxTrials);
 
@@ -150,7 +157,7 @@ for sub = subjectlist
                 end
                 GapsAfterFill = sum(GazeData(:,8)==4)/size(GazeData,1);
                 
-                % apply median filter to smooth out noise in the gaze
+                % apply moving average filter to smooth out noise in the gaze
                 % position samples
                 newX = zeros(size(GazeData(:,5)));
                 newY = zeros(size(GazeData(:,6)));
@@ -261,6 +268,90 @@ for sub = subjectlist
                         aa = aa + 1;
                     end
                 end
+
+
+                %% This is here so that you can view the filtered X and Y coordinates across time for each trial. Useful for debugging
+                    if graphVersion
+                        
+                        if ismember(t, trialsToCheck)
+                    
+                        distractorOnPoint = find(timeStamps>DistractorOn, 1);
+                        targetOnPoint = find(timeStamps > TargetOn, 1);
+                        msTime = (GazeData(:,1)-GazeData(1))/1000;
+                        acceleration = diff(velocity)/.0033;
+
+
+                        %scrsz = get(groot,'ScreenSize');
+
+                        posFig = figure(1);
+                        subplot(2,2,1)
+                        plot(msTime, GazeData(:,9), 'k')
+                        hold on
+                        plot(msTime, GazeData(:,10), 'b')                   
+
+                        plot(repmat(msTime(distractorOnPoint), [1,1920]), 1:1920, 'r')
+                        plot(repmat(msTime(targetOnPoint), [1,1920]), 1:1920, 'g')
+                        hold off
+                        axis([0, msTime(end), 0, 1920])
+                        title('X and Y Coordinates Across Time')
+                        xlabel('Time (ms)');
+                        ylabel('Pixel');
+                        legend('X Coordinates', 'Y Coordinates', 'Distractor On', 'Target On');
+
+                        subplot(2,2,3)
+                        plot(GazeData(1:distractorOnPoint-1,9), GazeData(1:distractorOnPoint-1,10), 'k')
+                        hold on
+                        plot(GazeData(distractorOnPoint:targetOnPoint-1,9), GazeData(distractorOnPoint:targetOnPoint-1,10), 'r')
+                        plot(GazeData(targetOnPoint:end,9), GazeData(targetOnPoint:end,10), 'g')
+                        hold off
+                        axis([0, 1920, 0, 1080])
+                        title('X and Y Coordinates')
+                        xlabel('X Coords')
+                        ylabel('Y Coords')
+                        legend('Pre-Distractor', 'Distractor On', 'Target On');
+
+                        subplot(2,2,2)
+                        plot(msTime(1:length(velocity)), velocity)
+                        hold on
+                        plot(msTime(1:length(velocity)), repmat(vThreshold, [length(velocity), 1]), '--k')
+                        plot(repmat(msTime(distractorOnPoint), [1,1920]), 1:1920, 'r')
+                        plot(repmat(msTime(targetOnPoint), [1,1920]), 1:1920, 'g')
+                        hold off
+                        axis([0, msTime(end), 0, 100])
+                        title('Velocity Across Time')
+                        xlabel('Time (ms)')
+                        ylabel('Velocity (dva/s)')
+                        legend('Velocity', 'Velocity Threshold', 'Distractor On', 'Target On');
+                        
+%                         subplot(2,2,4)
+%                         plot(GazeData(1:distractorOnPoint-1,5), GazeData(1:distractorOnPoint-1,6), 'k')
+%                         hold on
+%                         plot(GazeData(distractorOnPoint:targetOnPoint-1,5), GazeData(distractorOnPoint:targetOnPoint-1,6), 'r')
+%                         plot(GazeData(targetOnPoint:end,5), GazeData(targetOnPoint:end,6), 'g')
+%                         hold off
+%                         %axis([0, 1920, 0, 1080])
+%                         title('X and Y Coordinates')
+%                         xlabel('X Coords')
+%                         ylabel('Y Coords')
+%                         legend('Pre-Distractor', 'Distractor On', 'Target On');
+
+
+                        subplot(2,2,4)
+                        plot(msTime(1:length(acceleration)), acceleration)
+                        hold on
+                        plot(repmat(msTime(distractorOnPoint), [1,15000]), 1:15000, 'r')
+                        plot(repmat(msTime(targetOnPoint), [1,15000]), 1:15000, 'g')
+                        hold off
+                        axis([0, msTime(end), 0, 15000])
+                        title('Approximated Acceleration Across Time')
+                        xlabel('Time (ms)')
+                        ylabel('Acceleration (dva/s^2)')
+                        legend('Acceleration', 'Distractor On', 'Target On');
+                        pause;
+                        
+                        end
+                    
+                    end
 
                 
 %                 %merge adjacent fixations
